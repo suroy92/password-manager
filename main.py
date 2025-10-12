@@ -1,23 +1,26 @@
+import os
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog, filedialog
 
 # --- App modules ---
 from database import (
     create_tables, list_passwords, get_password_details,
     store_password, update_password, delete_password_entry,
-    export_passwords
+    export_passwords, DB_FILE
 )
-from encryption import generate_secure_password  # unchanged for password generator
+from encryption import generate_secure_password, initialize_vault
 
-# 🔐 NEW: logging (sanitized) and vault init
+# Optional: redacted rotating logs
 try:
     from pm_core.logging_setup import setup_logger
     log = setup_logger(level="INFO")
 except Exception:
     log = None
 
-from encryption import initialize_vault  # 🔐 NEW: master-password bootstrap/unlock
-from pm_core.clipboard import copy_to_clipboard  # 🧽 NEW: auto-clear clipboard
+# NEW: clipboard hygiene, encrypted export, and master-password rotation
+from pm_core.clipboard import copy_to_clipboard
+from pm_core.export_import import export_encrypted
+from pm_core.rotation import rotate_master_password
 
 
 class PasswordManagerApp:
@@ -30,11 +33,32 @@ class PasswordManagerApp:
         self.style.configure("Treeview.Heading", font=("Helvetica", 12, "bold"))
         self.style.configure("Treeview", font=("Helvetica", 10))
 
-        # Create DB tables if missing (existing behavior)
+        # Menubar (NEW)
+        self._build_menu()
+
         create_tables()
         self.create_widgets()
         self.load_passwords()
 
+    # ---------- NEW: Menubar ----------
+    def _build_menu(self):
+        menubar = tk.Menu(self.root)
+
+        security_menu = tk.Menu(menubar, tearoff=0)
+        security_menu.add_command(
+            label="Change Master Password...",
+            command=self.change_master_password_action
+        )
+        security_menu.add_separator()
+        security_menu.add_command(
+            label="Export (Encrypted)...",
+            command=self.export_encrypted_action
+        )
+        menubar.add_cascade(label="Security", menu=security_menu)
+
+        self.root.config(menu=menubar)
+
+    # ---------- Existing UI ----------
     def create_widgets(self):
         # Top buttons
         top_frame = ttk.Frame(self.root, padding="10")
@@ -42,7 +66,7 @@ class PasswordManagerApp:
 
         ttk.Button(top_frame, text="Store New", command=self.store_password_dialog).pack(side=tk.LEFT, padx=5)
         ttk.Button(top_frame, text="Generate Password", command=self.generate_password_dialog).pack(side=tk.LEFT, padx=5)
-        ttk.Button(top_frame, text="Export Passwords", command=self.export_passwords_file).pack(side=tk.LEFT, padx=5)
+        ttk.Button(top_frame, text="Export Passwords (Plaintext)", command=self.export_passwords_file).pack(side=tk.LEFT, padx=5)
 
         # Treeview
         columns = ("id", "title", "username")
@@ -119,10 +143,10 @@ class PasswordManagerApp:
         class GenerateDialog(simpledialog.Dialog):
             def body(self, master):
                 tk.Label(master, text="Password Length:").grid(row=0, column=0, padx=5, pady=5)
-                self.length_entry = tk.Entry(master); self.length_entry.insert(0, "10"); self.length_entry.grid(row=0, column=1, padx=5, pady=5)
+                self.length_entry = tk.Entry(master); self.length_entry.insert(0, "12"); self.length_entry.grid(row=0, column=1, padx=5, pady=5)
 
-                self.numbers_var = tk.IntVar()
-                self.symbols_var = tk.IntVar()
+                self.numbers_var = tk.IntVar(value=1)
+                self.symbols_var = tk.IntVar(value=1)
 
                 self.numbers_check = tk.Checkbutton(master, text="Include Numbers", variable=self.numbers_var)
                 self.numbers_check.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
@@ -201,10 +225,74 @@ class PasswordManagerApp:
         entry_id = self.tree.item(selected[0], 'values')[0]
         details = get_password_details(entry_id)
         if details:
-            # 🧽 NEW: auto-clear clipboard after 20s (instead of leaving secret indefinitely)
+            # Auto-clear clipboard after ~20s
             copy_to_clipboard(self.root, details['password'], timeout_seconds=20)
             messagebox.showinfo("Copied", "Password copied to clipboard (clears in ~20s).")
 
+    # ---------- NEW: Secure features ----------
+    def change_master_password_action(self):
+        old_pw = simpledialog.askstring("Change Master Password", "Enter current master password:", show="*")
+        if not old_pw:
+            return
+        new1 = simpledialog.askstring("Change Master Password", "Enter new master password:", show="*")
+        new2 = simpledialog.askstring("Change Master Password", "Confirm new master password:", show="*")
+        if not new1 or new1 != new2:
+            messagebox.showerror("Change Master Password", "New passwords do not match.")
+            return
+
+        try:
+            # Re-encrypt selected columns and update vault salt+canary
+            updated = rotate_master_password(
+                db_path=DB_FILE,
+                old_password=old_pw,
+                new_password=new1,
+                table_name="passwords",
+                encrypted_fields=("password",),  # extend to ("password","recovery_codes") when you encrypt that too
+                id_column="id",
+            )
+            messagebox.showinfo("Change Master Password", f"Re-encrypted {updated} row(s) under the new master password.")
+        except Exception as e:
+            messagebox.showerror("Change Master Password", f"Failed to rotate key: {e}")
+
+    def export_encrypted_action(self):
+        # Choose output path
+        default_name = "vault.pmjson.enc"
+        out_path = filedialog.asksaveasfilename(
+            title="Save Encrypted Export",
+            defaultextension=".pmjson.enc",
+            initialfile=default_name,
+            filetypes=[("Encrypted Export", "*.pmjson.enc"), ("All Files", "*.*")]
+        )
+        if not out_path:
+            return
+
+        # Choose export mode
+        use_pass = messagebox.askyesno(
+            "Encrypted Export",
+            "Use a SEPARATE export passphrase (recommended)?\n\n"
+            "Yes  → Protect with a passphrase you enter now (portable export).\n"
+            "No   → Protect with your current vault master password."
+        )
+
+        try:
+            if use_pass:
+                p1 = simpledialog.askstring("Export Passphrase", "Enter export passphrase:", show="*")
+                p2 = simpledialog.askstring("Export Passphrase", "Confirm export passphrase:", show="*")
+                if not p1 or p1 != p2:
+                    messagebox.showerror("Encrypted Export", "Passphrases do not match.")
+                    return
+                out = export_encrypted(DB_FILE, table="passwords", out_path=out_path, master_password="", passphrase=p1)
+            else:
+                master = simpledialog.askstring("Master Password", "Enter your master password:", show="*")
+                if not master:
+                    return
+                out = export_encrypted(DB_FILE, table="passwords", out_path=out_path, master_password=master)
+
+            messagebox.showinfo("Encrypted Export", f"Encrypted export created:\n{out}")
+        except Exception as e:
+            messagebox.showerror("Encrypted Export", f"Failed: {e}")
+
+    # ---------- Existing plaintext export (keep if you want) ----------
     def export_passwords_file(self):
         try:
             message = export_passwords()
@@ -217,8 +305,7 @@ if __name__ == "__main__":
     # Create the root window
     root = tk.Tk()
 
-    # 🔐 Initialize/Unlock the vault (first run shows setup dialog)
-    # This gates the app with a master password and prepares the crypto context.
+    # Initialize/Unlock the vault (first run shows setup dialog)
     initialize_vault(root)
 
     # Start app UI
