@@ -582,8 +582,16 @@ if __name__ == "__main__":
     # Apply global fonts (Windows prefers Inter if installed)
     apply_app_fonts()
 
-    # Initialize/Unlock the vault (first run shows setup dialog)
-    initialize_vault(root)
+     # 🔧 Ensure the unlock dialog is always visible
+    root.withdraw()                 # hide main window
+    root.update_idletasks()
+    try:
+        # run your vault setup/unlock (shows dialogs)
+        initialize_vault(root)
+    finally:
+        root.deiconify()            # show main window after unlock
+        root.lift()                 # bring to front
+        root.after(0, root.focus_force)
 
     # Start UI
     app = PasswordManagerApp(root)
