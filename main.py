@@ -1,11 +1,24 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
+
+# --- App modules ---
 from database import (
     create_tables, list_passwords, get_password_details,
     store_password, update_password, delete_password_entry,
     export_passwords
 )
-from encryption import generate_secure_password
+from encryption import generate_secure_password  # unchanged for password generator
+
+# 🔐 NEW: logging (sanitized) and vault init
+try:
+    from pm_core.logging_setup import setup_logger
+    log = setup_logger(level="INFO")
+except Exception:
+    log = None
+
+from encryption import initialize_vault  # 🔐 NEW: master-password bootstrap/unlock
+from pm_core.clipboard import copy_to_clipboard  # 🧽 NEW: auto-clear clipboard
+
 
 class PasswordManagerApp:
     def __init__(self, root):
@@ -16,7 +29,8 @@ class PasswordManagerApp:
         self.style = ttk.Style()
         self.style.configure("Treeview.Heading", font=("Helvetica", 12, "bold"))
         self.style.configure("Treeview", font=("Helvetica", 10))
-        
+
+        # Create DB tables if missing (existing behavior)
         create_tables()
         self.create_widgets()
         self.load_passwords()
@@ -187,9 +201,9 @@ class PasswordManagerApp:
         entry_id = self.tree.item(selected[0], 'values')[0]
         details = get_password_details(entry_id)
         if details:
-            self.root.clipboard_clear()
-            self.root.clipboard_append(details['password'])
-            messagebox.showinfo("Copied", "Password copied to clipboard!")
+            # 🧽 NEW: auto-clear clipboard after 20s (instead of leaving secret indefinitely)
+            copy_to_clipboard(self.root, details['password'], timeout_seconds=20)
+            messagebox.showinfo("Copied", "Password copied to clipboard (clears in ~20s).")
 
     def export_passwords_file(self):
         try:
@@ -200,6 +214,13 @@ class PasswordManagerApp:
 
 
 if __name__ == "__main__":
+    # Create the root window
     root = tk.Tk()
+
+    # 🔐 Initialize/Unlock the vault (first run shows setup dialog)
+    # This gates the app with a master password and prepares the crypto context.
+    initialize_vault(root)
+
+    # Start app UI
     app = PasswordManagerApp(root)
     root.mainloop()

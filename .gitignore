@@ -12,6 +12,10 @@ venv/
 .venv/
 ENV/
 *.log
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 passwords.db
 secret.key

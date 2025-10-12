@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime
-from encryption import f, encrypt, decrypt
+# Phase-1: only import encrypt/decrypt (no global Fernet instance)
+from encryption import encrypt, decrypt
 
 DB_FILE = "passwords.db"
 
@@ -11,6 +12,9 @@ def get_db_connection():
 def create_tables():
     conn = get_db_connection()
     cursor = conn.cursor()
+    # Note: column type left as TEXT for compatibility with existing DBs.
+    # SQLite will happily store the Fernet token bytes in a TEXT-typed column,
+    # but if you're creating a fresh DB you can switch 'password TEXT' -> 'password BLOB'.
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS passwords (
             id INTEGER PRIMARY KEY,
@@ -27,11 +31,11 @@ def create_tables():
 def store_password(title, username, password, recovery_codes=None):
     conn = get_db_connection()
     cursor = conn.cursor()
-    encrypted_password = encrypt(password)
+    token = encrypt(password)  # bytes (Fernet token)
     cursor.execute("""
         INSERT INTO passwords (title, username, password, recovery_codes, created_at)
         VALUES (?, ?, ?, ?, ?)
-    """, (title, username, encrypted_password, recovery_codes, datetime.now().isoformat()))
+    """, (title, username, token, recovery_codes, datetime.now().isoformat()))
     conn.commit()
     conn.close()
     return True
@@ -51,11 +55,13 @@ def get_password_details(entry_id):
     row = cursor.fetchone()
     conn.close()
     if row:
+        # row[3] may be bytes, memoryview, or str depending on SQLite/python build.
+        password_plain = decrypt(row[3])
         return {
             "id": row[0],
             "title": row[1],
             "username": row[2],
-            "password": decrypt(row[3]),
+            "password": password_plain,
             "recovery_codes": row[4],
             "created_at": row[5]
         }
@@ -64,12 +70,12 @@ def get_password_details(entry_id):
 def update_password(entry_id, title, username, password, recovery_codes=None):
     conn = get_db_connection()
     cursor = conn.cursor()
-    encrypted_password = encrypt(password)
+    token = encrypt(password)  # bytes
     cursor.execute("""
         UPDATE passwords
         SET title = ?, username = ?, password = ?, recovery_codes = ?
         WHERE id = ?
-    """, (title, username, encrypted_password, recovery_codes, entry_id))
+    """, (title, username, token, recovery_codes, entry_id))
     conn.commit()
     conn.close()
     return True
@@ -103,7 +109,7 @@ def export_passwords():
         })
 
     file_path = os.path.join(os.getcwd(), "Exported.json")
-    with open(file_path, "w") as f_json:
+    with open(file_path, "w", encoding="utf-8") as f_json:
         json.dump(exported_data, f_json, indent=4)
 
     return f"Passwords exported to {file_path}"
