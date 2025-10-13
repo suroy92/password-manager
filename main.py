@@ -576,7 +576,7 @@ class PasswordManagerApp:
 
 if __name__ == "__main__":
     # Create themed window (light by default)
-    root = Window(themename="darkly")  # change theme string here if you prefer another ttkbootstrap theme
+    root = Window(themename="morph")  # change theme string here if you prefer another ttkbootstrap theme
     root.geometry("900x650")
 
     # Apply global fonts (Windows prefers Inter if installed)
