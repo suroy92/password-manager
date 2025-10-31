@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: password-manager
+Version: 0.0.3
+Summary: Password Manager — backend (FastAPI)
+Requires-Python: >=3.10
+License-File: LICENSE
+Requires-Dist: fastapi<1,>=0.111
+Requires-Dist: uvicorn[standard]<1,>=0.30
+Requires-Dist: pydantic<3,>=2.7
+Requires-Dist: platformdirs>=4.3.6
+Requires-Dist: argon2-cffi>=23.1.0
+Requires-Dist: pywebview>=4.4
+Provides-Extra: sqlcipher
+Requires-Dist: sqlcipher3; extra == "sqlcipher"
+Requires-Dist: sqlcipher3-binary; extra == "sqlcipher"
+Dynamic: license-file
