@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "password-manager"
+version = "0.0.1"
+description = "Password Manager — pywebview + FastAPI + React scaffold"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.111,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "pydantic>=2.7,<3",
+  "platformdirs>=4.3.6",
+  "pywebview>=4.4",
+]
+
+[project.optional-dependencies]
+dev = ["ruff", "mypy", "pytest", "httpx", "types-requests"]
+
+[tool.setuptools.packages.find]
+where = [""]
+include = ["pm*"]
