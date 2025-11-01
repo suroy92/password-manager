@@ -1,26 +1,27 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
-import api from '../api'
 import Container from '@mui/material/Container'
 import Paper from '@mui/material/Paper'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
+import Snackbar from '@mui/material/Snackbar'
+import { unlockVault } from '../api'
 
-export default function Unlock() {
+export default function Unlock(){
   const [pw, setPw] = React.useState('')
   const [loading, setLoading] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
+  const [snack, setSnack] = React.useState<string | null>(null)
   const nav = useNavigate()
 
-  async function submit() {
-    setLoading(true); setError(null)
+  async function submit(){
+    setLoading(true); setSnack(null)
     try {
-      await api.post('/unlock', { master_password: pw })
+      await unlockVault(pw)
       nav('/vault')
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || 'Unlock failed')
+    } catch (e:any) {
+      setSnack(e?.response?.data?.detail || 'Unlock failed')
     } finally {
       setLoading(false)
     }
@@ -35,9 +36,12 @@ export default function Unlock() {
           <Button variant="contained" onClick={submit} disabled={loading || !pw}>
             {loading ? 'Unlocking...' : 'Unlock'}
           </Button>
-          {error && <Typography color="error">{error}</Typography>}
+          <Typography variant="body2" color="text.secondary">
+            First time here? Go to Setup from the top-right to initialize the vault.
+          </Typography>
         </Stack>
       </Paper>
+      <Snackbar open={!!snack} autoHideDuration={3000} onClose={()=>setSnack(null)} message={snack || ''} />
     </Container>
   )
 }

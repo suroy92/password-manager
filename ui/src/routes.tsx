@@ -1,11 +1,15 @@
 import { createBrowserRouter } from 'react-router-dom'
-import Layout from './pages/Layout'
+import AppLayout from './components/AppLayout'
+import Setup from './pages/Setup'
 import Unlock from './pages/Unlock'
 import Vault from './pages/Vault'
 
-export default createBrowserRouter([
-  { path: '/', element: <Layout />, children: [
+const router = createBrowserRouter([
+  { path: '/', element: <AppLayout />, children: [
     { index: true, element: <Unlock /> },
-    { path: 'vault', element: <Vault /> }
-  ]},
+    { path: 'setup', element: <Setup /> },
+    { path: 'vault', element: <Vault /> },
+  ]}
 ])
+
+export default router

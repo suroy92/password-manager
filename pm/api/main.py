@@ -1,5 +1,6 @@
 from __future__ import annotations
-from fastapi import FastAPI, HTTPException
+
+from fastapi import FastAPI, HTTPException, Body, Query
 from pydantic import BaseModel
 from pathlib import Path
 from platformdirs import user_data_dir
@@ -13,38 +14,42 @@ APP_DIR = Path(user_data_dir("PasswordManager"))
 APP_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = APP_DIR / "vault.db"
 
+
+class UnlockIn(BaseModel):
+    master_password: str
+
+
+class GenReq(BaseModel):
+    length: int = 20
+    upper: bool = True
+    lower: bool = True
+    digits: bool = True
+    symbols: bool = True
+    avoid_ambiguous: bool = True
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="Password Manager API")
     state = {"vault": VaultService(DB_PATH)}
-
-    class UnlockIn(BaseModel):
-        master_password: str
-
-    class GenReq(BaseModel):
-        length: int = 20
-        upper: bool = True
-        lower: bool = True
-        digits: bool = True
-        symbols: bool = True
-        avoid_ambiguous: bool = True
 
     @app.get("/api/health")
     def health():
         return {"ok": True}
 
+    # ---- Auth / lifecycle ----------------------------------------------------
     @app.post("/api/setup")
-    def setup(body: UnlockIn):
+    def setup(payload: UnlockIn = Body(..., description='{"master_password": "..."}')):
         v = state["vault"]
         if v.is_initialized():
             raise HTTPException(status_code=400, detail="already initialized")
-        v.initialize(body.master_password)
+        v.initialize(payload.master_password)
         return {"ok": True}
 
     @app.post("/api/unlock")
-    def unlock(body: UnlockIn):
+    def unlock(payload: UnlockIn = Body(..., description='{"master_password": "..."}')):
         v = state["vault"]
         try:
-            v.unlock(body.master_password)
+            v.unlock(payload.master_password)
             return {"ok": True}
         except RuntimeError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -54,8 +59,9 @@ def create_app() -> FastAPI:
         state["vault"].lock()
         return {"ok": True}
 
+    # ---- Password utilities --------------------------------------------------
     @app.post("/api/password/generate")
-    def password_generate(req: GenReq):
+    def password_generate(req: GenReq = Body(...)):
         try:
             pw = generate_password(
                 length=req.length,
@@ -69,8 +75,9 @@ def create_app() -> FastAPI:
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+    # ---- Entries CRUD --------------------------------------------------------
     @app.get("/api/entries")
-    def list_entries(q: Optional[str] = None):
+    def list_entries(q: Optional[str] = Query(None, description="Search query")):
         try:
             items = state["vault"].list(q=q)
             redacted = []
@@ -84,7 +91,10 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail=str(e))
 
     @app.post("/api/entries")
-    def create_entry(e: EntryIn, reveal: bool = False):
+    def create_entry(
+        e: EntryIn = Body(...),
+        reveal: bool = Query(False, description="Include password & recovery_codes in response"),
+    ):
         try:
             created = state["vault"].create(e)
             d = created.model_dump()
@@ -96,7 +106,10 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail=str(e))
 
     @app.get("/api/entries/{entry_id}")
-    def get_entry(entry_id: str, reveal: bool = False):
+    def get_entry(
+        entry_id: str,
+        reveal: bool = Query(False, description="Include password & recovery_codes in response"),
+    ):
         try:
             ent = state["vault"].get(entry_id)
             if not ent:
@@ -110,7 +123,11 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail=str(e))
 
     @app.put("/api/entries/{entry_id}")
-    def update_entry(entry_id: str, patch: EntryIn, reveal: bool = False):
+    def update_entry(
+        entry_id: str,
+        patch: EntryIn = Body(...),
+        reveal: bool = Query(False, description="Include password & recovery_codes in response"),
+    ):
         try:
             ent = state["vault"].update(entry_id, patch)
             if not ent:
@@ -134,5 +151,6 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail=str(e))
 
     return app
+
 
 app = create_app()

@@ -29,11 +29,16 @@ class Database:
         self.con: Optional[sqlite3.Connection] = None
 
     def connect(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.con = sqlite3.connect(str(self.path))
-        self.con.execute("PRAGMA foreign_keys = ON;")
-        self.con.executescript(SCHEMA)
-        self.con.commit()
+      self.path.parent.mkdir(parents=True, exist_ok=True)
+      # Allow use across FastAPI threadpool workers
+      self.con = sqlite3.connect(str(self.path), check_same_thread=False)
+      # Pragmas for desktop reliability
+      self.con.execute("PRAGMA journal_mode=WAL;")
+      self.con.execute("PRAGMA synchronous=NORMAL;")
+      self.con.execute("PRAGMA foreign_keys = ON;")
+      self.con.executescript(SCHEMA)
+      self.con.commit()
+
 
     def close(self) -> None:
         if self.con:

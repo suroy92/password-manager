@@ -1,0 +1,133 @@
+################################################################################
+# PYTHON / BACKEND
+################################################################################
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.build/
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+.venv.bak/
+
+# Local config / editor state
+*.sqlite
+*.db
+*.db-journal
+*.sqlite3
+*.sqlite3-journal
+
+# Our vault file (unencrypted sqlite or sqlcipher db)
+vault.db
+vault.db-journal
+vault.sqlite
+vault.sqlite-journal
+
+# pytest / coverage (future)
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.cache/
+
+# mypy / pyright / lint caches
+.mypy_cache/
+.pyright/
+.dmypy.json
+.pyre/
+
+# Local logs
+logs/
+*.log
+*.tmp
+
+################################################################################
+# NODE / FRONTEND (ui/)
+################################################################################
+
+# dependencies
+ui/node_modules/
+
+# build output
+ui/dist/
+ui/.vite/
+ui/.vite-cache/
+ui/*.local.*
+
+# lockfiles if you don't want to commit them (optional).
+# If you DO want lockfile reproducibility, remove these 2 lines.
+package-lock.json
+ui/package-lock.json
+
+# Debug / misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tsbuildinfo
+
+################################################################################
+# OS / EDITOR / TOOLING NOISE
+################################################################################
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# IDEs
+.idea/
+*.iml
+
+# temp / scratch
+*.swp
+*.swo
+*~
+tmp/
+temp/
+scratch/
+scratch.*
+
+
+################################################################################
+# SECRETS / TOKENS / KEYS
+################################################################################
+
+# In case you later add Google Drive sync, API creds, etc.
+secrets.json
+*.key
+*.pem
+*.pfx
+*.cer
+*.crt
+*.env
+.env.*
+.env.local
+.env.development.local
+.env.production.local
+.env.test.local
